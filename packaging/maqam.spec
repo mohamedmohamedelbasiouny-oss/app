@@ -25,7 +25,7 @@ if (PKG / "bin").exists():
 
 hiddenimports = []
 for pkg in ("yt_dlp", "demucs", "torchcrepe", "julius", "openunmix", "einops", "mido",
-            "sklearn.utils", "soxr", "maqam_app"):
+            "sklearn.utils", "soxr", "maqam_app", "huggingface_hub", "safetensors"):
     try:
         hiddenimports += collect_submodules(pkg)
     except Exception:

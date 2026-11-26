@@ -38,7 +38,7 @@ def cache_dir() -> Path:
 def models_dir() -> Path:
     """مجلد موديلات Demucs. الأول بندور على الموديلات المرفقة، وبعدين مجلد المستخدم."""
     bundled = resource_dir() / "models"
-    if (bundled / "hub" / "checkpoints").exists():
+    if (bundled / "hf").exists() or (bundled / "hub" / "checkpoints").exists():
         return bundled
     d = user_data_dir() / "models"
     d.mkdir(parents=True, exist_ok=True)
@@ -65,5 +65,11 @@ def ffmpeg_exe() -> str | None:
 def setup_runtime_env() -> None:
     """متغيرات بيئة لازمة قبل استيراد librosa/numba/torch."""
     os.environ.setdefault("NUMBA_CACHE_DIR", str(cache_dir() / "numba"))
-    os.environ.setdefault("TORCH_HOME", str(models_dir()))
+    md = models_dir()
+    os.environ.setdefault("TORCH_HOME", str(md))
+    # demucs 4.1 بيحمّل موديلاته من HuggingFace — لو الموديل مرفق نشتغل offline على طول
+    os.environ.setdefault("HF_HOME", str(md / "hf"))
+    if (md / "hf" / "hub").exists() and any((md / "hf" / "hub").glob("models--*")):
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
     os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")

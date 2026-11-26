@@ -16,6 +16,7 @@ def main() -> None:
     models = HERE / "models"
     models.mkdir(exist_ok=True)
     os.environ["TORCH_HOME"] = str(models)
+    os.environ["HF_HOME"] = str(models / "hf")      # demucs 4.1 بيستخدم HuggingFace
     import torch
 
     torch.hub.set_dir(str(models / "hub"))
@@ -23,9 +24,17 @@ def main() -> None:
 
     m = get_model("htdemucs")
     print("Demucs:", type(m).__name__, "sources:", getattr(m, "sources", None))
-    ckpts = list((models / "hub" / "checkpoints").glob("*.th"))
+    ckpts = list(models.rglob("*.th")) + list(models.rglob("*.safetensors"))
     assert ckpts, "مفيش موديل Demucs اتحمّل"
-    print("checkpoints:", [c.name for c in ckpts])
+    print("checkpoints:", [str(c.relative_to(models)) for c in ckpts])
+
+    # نتأكد إن الموديل بيتحمّل offline من المجلد ده (زي ما هيحصل جوه البرنامج)
+    import subprocess
+    env = dict(os.environ, HF_HUB_OFFLINE="1")
+    subprocess.run([sys.executable, "-c",
+                    "from demucs.pretrained import get_model; get_model('htdemucs')"],
+                   env=env, check=True)
+    print("offline load OK")
 
     bindir = HERE / "bin"
     bindir.mkdir(exist_ok=True)
