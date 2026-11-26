@@ -110,7 +110,7 @@ MAQAMAT: list[Maqam] = [
           (("saba_zamzam", 0), ("hijaz", 6)), prior=0.0,
           description="صبا بالكرد بدل السيكاه."),
     Maqam("hijaz", "حجاز", "Hijaz", "hijaz", 4, (0, 2, 8, 10, 14, 16, 20),
-          (("hijaz", 0), ("nahawand4", 10)), alternates=(17, 18), prior=0.05,
+          (("hijaz", 0), ("nahawand4", 10)), alternates=(17,), prior=0.05,
           description="جنس حجاز على الدوكاه وجنس نهاوند (أو راست) على النوا."),
     Maqam("hijazkar", "حجاز كار", "Hijaz Kar", "hijaz", 0, (0, 2, 8, 10, 14, 16, 22),
           (("hijaz", 0), ("hijaz", 14)), prior=0.03,

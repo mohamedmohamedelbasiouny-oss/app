@@ -137,7 +137,7 @@ def _score(m: Maqam, tonic: int, h: np.ndarray, tonic_rel: np.ndarray) -> tuple[
     gh = (tonic + m.ghammaz_pos()) % 24
     ghammaz_term = min(1.0, h[gh] / 0.08)
 
-    score = (in_scale + 0.5 * alt_mass
+    score = (in_scale + 0.3 * alt_mass
              - 2.2 * out
              + 0.30 * lower_present
              + 0.08 * upper_present

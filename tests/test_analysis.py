@@ -1,5 +1,6 @@
 """اختبارات المراحل: الأصوات المولّدة لازم تتسمى صح، والضبط والمقام والإيقاع يتعرفوا."""
 import subprocess
+import zlib
 
 import numpy as np
 import pytest
@@ -58,7 +59,7 @@ def test_unclear_note_is_marked():
 
 @pytest.mark.parametrize("maqam", MAQAMAT, ids=lambda m: m.key)
 def test_maqam_detection_from_melody(maqam):
-    rng = np.random.default_rng(abs(hash(maqam.key)) % 1000)
+    rng = np.random.default_rng(zlib.crc32(maqam.key.encode()))  # ثابت في كل تشغيل
     # منحنى cents مباشر (من غير tracker) عشان نختبر منطق المقامات نفسه
     hop = 0.01
     degs = list(maqam.scale) + [s + 24 for s in maqam.scale]
