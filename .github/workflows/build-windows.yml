@@ -1,0 +1,67 @@
+name: Build Windows Setup
+
+on:
+  push:
+    branches: ["claude/**", "main", "master"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUTF8: "1"
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PyTorch (CPU)
+        run: python -m pip install --upgrade pip && pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install requirements
+        run: pip install -r requirements.txt pyinstaller pytest pillow
+
+      - name: Download Demucs model + ffmpeg + deno
+        run: python packaging/prepare_build.py
+
+      - name: Run tests
+        run: python -m pytest -q tests
+
+      - name: Build exe (PyInstaller)
+        run: pyinstaller packaging/maqam.spec --noconfirm --distpath dist --workpath build
+
+      - name: Self-test the built exe (Demucs + CREPE + PDF + MIDI)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist\MaqamAnalyzer\MaqamAnalyzer.exe" -ArgumentList "--selftest","selftest.json" -Wait -PassThru
+          Get-Content selftest.json
+          if ($p.ExitCode -ne 0) { throw "Self-test failed with exit code $($p.ExitCode)" }
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; }
+          & $iscc packaging\installer.iss
+          Get-ChildItem Output
+
+      - name: Upload Setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: MaqamAnalyzer-Setup
+          path: Output/*.exe
+          compression-level: 0
+          retention-days: 30
+
+      - name: Upload self-test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selftest-report
+          path: selftest.json
+          if-no-files-found: ignore
