@@ -22,9 +22,11 @@ OutputBaseFilename=MaqamAnalyzer-Setup-{#MyAppVersion}
 SetupIconFile=icon.ico
 UninstallDisplayIcon={app}\{#MyAppExe}
 UninstallDisplayName={#MyAppName}
-Compression=lzma2/ultra64
-SolidCompression=yes
-LZMANumBlockThreads=4
+; ضغط أخف عشان المكتبات الكبيرة (PyTorch) ما تخلّصش ذاكرة الـ compiler
+Compression=lzma2/max
+SolidCompression=no
+LZMAUseSeparateProcess=yes
+LZMANumBlockThreads=2
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
