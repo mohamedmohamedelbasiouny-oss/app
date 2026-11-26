@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, QSize, Qt, QTimer, QUrl
+from PySide6.QtCore import QSettings, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QPainter, QPen, QColor
 from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                                QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
@@ -18,6 +18,7 @@ from . import theme
 from .icons import icon
 from .panels import MaqamPanel, NotesPanel, OrganPanel, RhythmPanel
 from .widgets import MelodyView, Panel, fmt_clock
+from .mobile_dialog import GuiInvoker, MobileDialog
 from .worker import AnalysisWorker, start_worker
 
 try:
@@ -175,6 +176,8 @@ class SettingsDialog(QDialog):
 
 
 class MainWindow(QMainWindow):
+    mobileResult = Signal(object)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} — {__version__}")
@@ -195,6 +198,7 @@ class MainWindow(QMainWindow):
         self._build()
         self._build_player()
         self._set_has_result(False)
+        self._build_mobile()
 
     # ------------------------------------------------------------ بناء الواجهة
     def _build(self):
@@ -226,6 +230,9 @@ class MainWindow(QMainWindow):
         self.btn_midi.clicked.connect(self.export_midi)
         self.btn_pdf = tool_button("pdf", "تصدير التقرير كامل PDF", "icon", "PDF")
         self.btn_pdf.clicked.connect(self.export_pdf)
+        self.btn_mobile = tool_button("phone", "افتح البرنامج من الآيفون (وضع الموبايل)", "icon",
+                                      "الموبايل")
+        self.btn_mobile.clicked.connect(self.open_mobile)
         self.btn_settings = tool_button("settings", "الإعدادات")
         self.btn_settings.clicked.connect(self.open_settings)
         bar.addWidget(logo)
@@ -236,6 +243,7 @@ class MainWindow(QMainWindow):
         bar.addSpacing(10)
         bar.addWidget(self.btn_midi)
         bar.addWidget(self.btn_pdf)
+        bar.addWidget(self.btn_mobile)
         bar.addWidget(self.btn_settings)
         top.lay.addLayout(bar)
         root.addWidget(top)
@@ -362,6 +370,45 @@ class MainWindow(QMainWindow):
         act2.setShortcut(QKeySequence(Qt.Key_Space))
         act2.triggered.connect(self.toggle_play)
         self.addAction(act2)
+
+    # ------------------------------------------------------------ وضع الموبايل
+    def _build_mobile(self):
+        from ..mobile.server import MobileServer
+
+        self._gui_invoker = GuiInvoker()
+        self.mobile = MobileServer(
+            settings_provider=lambda: self.settings,
+            on_result=self.mobileResult.emit,
+            is_busy_external=lambda: self.worker is not None,
+            gui_call=self._gui_invoker)
+        self.mobileResult.connect(self._on_mobile_result)
+        if self.qs.value("mobile_auto", False, type=bool):
+            try:
+                self.mobile.start(int(self.qs.value("mobile_port", 8765)))
+            except Exception:
+                pass
+        self._update_mobile_button()
+
+    def _update_mobile_button(self):
+        on = self.mobile.running
+        self.btn_mobile.setIcon(icon("phone", theme.ACCENT if on else theme.TEXT))
+        self.btn_mobile.setText("الموبايل ●" if on else "الموبايل")
+
+    def open_mobile(self):
+        def started():
+            if self.result is not None:
+                self.mobile.set_result(self.result)
+        dlg = MobileDialog(self.mobile, self.qs, on_start=started, parent=self)
+        dlg.exec()
+        self._update_mobile_button()
+
+    def _on_mobile_result(self, res):
+        """تحليل اتعمل من الآيفون — بنعرضه على الكمبيوتر كمان."""
+        if self.worker is not None:
+            return
+        self.result = res
+        self._set_busy(False)
+        self.show_result(res)
 
     def _build_player(self):
         self.player = None
@@ -516,6 +563,11 @@ class MainWindow(QMainWindow):
         self.result = res
         self._set_busy(False)
         self.show_result(res)
+        if self.mobile.running:
+            try:
+                self.mobile.set_result(res)
+            except Exception:
+                pass
 
     # ------------------------------------------------------------ عرض النتيجة
     def show_result(self, res: AnalysisResult):
@@ -666,6 +718,10 @@ class MainWindow(QMainWindow):
             self.qs.setValue("melody_source", self.settings.melody_source)
 
     def closeEvent(self, ev):
+        try:
+            self.mobile.stop()
+        except Exception:
+            pass
         if self.worker is not None:
             self.worker.cancel()
             self._cleanup_worker()

@@ -22,11 +22,43 @@ def _img_tag(img: QImage, width_px: int) -> str:
     return f'<img src="data:image/png;base64,{b64}" width="{width_px}">'
 
 
+class _Headless:
+    """نسخة من رسّام الـ widget من غير QWidget — عشان التقرير يتعمل من أي thread
+    (مثلاً لما الآيفون يطلب PDF من وضع الموبايل)."""
+
+    def __init__(self, w: int, h: int):
+        self._w, self._h = w, h
+
+    def width(self):
+        return self._w
+
+    def height(self):
+        return self._h
+
+    def font(self):
+        from PySide6.QtGui import QFont
+        return QFont()
+
+    def update(self):
+        pass
+
+
+def _headless(widget_cls, w: int, h: int):
+    attrs = {k: v for k, v in widget_cls.__dict__.items()
+             if not k.startswith("__") and not isinstance(v, type)}
+    attrs = {k: v for k, v in attrs.items() if k not in ("seekRequested", "staticMetaObject")}
+    cls = type(f"Headless{widget_cls.__name__}", (_Headless,), attrs)
+    return cls(w, h)
+
+
 def _render_widget(widget_cls, setup, w=1150, h=430) -> QImage:
-    wid = widget_cls()
+    wid = _headless(widget_cls, w, h)
+    if hasattr(wid, "clear"):
+        wid.clear()
+    else:
+        wid.cells, wid.dum, wid.tak = [], [], []
     setup(wid)
     wid.print_mode = True
-    wid.resize(w, h)
     img = QImage(w, h, QImage.Format_ARGB32)
     img.fill(Qt.white)
     p = QPainter(img)

@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="المقامات">
+<meta name="theme-color" content="#161618">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>محلل المقامات</title>
+<style>
+:root {
+  --bg: #161618; --surface: #202023; --surface2: #2A2A2E; --border: #34343A;
+  --text: #F2F2F4; --dim: #9C9CA6; --accent: #5AA9FF; --accent-ink: #0B1726;
+  --danger: #FF6B6B; --ok: #7ED6A5;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body {
+  font-family: -apple-system, "SF Arabic", "Geeza Pro", system-ui, "Segoe UI", Tahoma, sans-serif;
+  font-size: 16px; line-height: 1.45;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px calc(var(--safe-b) + 128px);
+  -webkit-text-size-adjust: 100%;
+}
+h1 { font-size: 22px; margin: 4px 2px 12px; display: flex; align-items: center; gap: 8px; }
+h1 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); display: inline-block; }
+h1 .dot.off { background: var(--danger); }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 14px; margin-bottom: 12px; }
+.card { background: var(--surface2); border-radius: 14px; padding: 12px; margin-top: 10px; }
+.label { color: var(--dim); font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.dim { color: var(--dim); font-size: 14px; }
+.row { display: flex; gap: 8px; align-items: center; }
+.grow { flex: 1; min-width: 0; }
+input[type=url], select {
+  width: 100%; background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 14px; padding: 12px 14px; font-size: 16px; font-family: inherit; outline: none;
+  -webkit-appearance: none; appearance: none;
+}
+input[type=url]:focus { border-color: var(--accent); }
+input[type=url] { direction: ltr; text-align: left; }
+button, .btn {
+  background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 14px; padding: 12px 16px; font-size: 16px; font-family: inherit; font-weight: 600;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  text-decoration: none; white-space: nowrap;
+}
+button:active, .btn:active { opacity: .75; }
+button.accent, .btn.accent { background: var(--accent); color: var(--accent-ink); border: none; }
+button:disabled { opacity: .45; }
+.big { font-size: 28px; font-weight: 700; margin: 2px 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { background: var(--surface2); border-radius: 999px; padding: 5px 11px; font-size: 13.5px; }
+.bar { height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin: 10px 0; }
+.bar > div { height: 100%; width: 0; background: var(--accent); border-radius: 4px; transition: width .3s; }
+.hidden { display: none !important; }
+.err { color: var(--danger); }
+.warn { color: #FFC86B; font-size: 14px; margin-top: 8px; }
+
+/* رسم اللحن */
+#plotWrap { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; direction: ltr; border-radius: 12px; background: var(--surface2); }
+#plot { display: block; touch-action: pan-x; }
+.zoom { display: flex; gap: 6px; }
+.zoom button { padding: 8px 14px; }
+
+/* التابات */
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 4px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 4px); z-index: 5; margin-bottom: 12px; }
+.tabs button { background: transparent; border: none; color: var(--dim); padding: 10px 2px; font-size: 15px; border-radius: 12px; }
+.tabs button.on { background: var(--surface2); color: var(--text); }
+
+.list-btn { width: 100%; text-align: right; justify-content: space-between; margin-top: 8px; padding: 12px; border: none; flex-direction: column; align-items: stretch; }
+.list-btn .t { color: var(--dim); font-size: 13px; font-weight: 500; direction: ltr; text-align: right; }
+
+.notes { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.notes td { padding: 9px 4px; border-bottom: 1px solid #2c2c31; }
+.notes tr.unclear td { color: var(--dim); }
+.notes td.qt { color: var(--accent); font-weight: 600; }
+.notes td.ltr { direction: ltr; text-align: center; }
+.notes tr:active td { background: #2a3442; }
+
+.hist { display: flex; align-items: flex-end; gap: 2px; height: 90px; direction: ltr; }
+.hist div { flex: 1; background: #4A4A52; border-radius: 2px 2px 0 0; min-height: 2px; }
+.hist div.s { background: var(--accent); }
+.hist div.tn { background: var(--ok); }
+.histlab { display: flex; gap: 2px; direction: ltr; font-size: 9px; color: var(--dim); }
+.histlab span { flex: 1; text-align: center; }
+
+.keys { width: 100%; border-collapse: collapse; }
+.keys td { padding: 8px 4px; text-align: center; border-bottom: 1px solid #2c2c31; }
+.keys tr.on td { color: var(--accent); font-weight: 700; }
+.ltr { direction: ltr; unicode-bidi: isolate; }
+svg { direction: ltr; }
+
+/* المشغل */
+#player {
+  position: fixed; left: 10px; right: 10px; bottom: calc(var(--safe-b) + 10px); z-index: 10;
+  background: rgba(32,32,35,.96); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  border: 1px solid var(--border); border-radius: 22px; padding: 10px 12px;
+}
+#player .top { display: flex; align-items: center; gap: 10px; }
+#playBtn { width: 52px; height: 52px; border-radius: 50%; padding: 0; flex: none; }
+#seek { width: 100%; direction: ltr; accent-color: var(--accent); }
+#player .sub { display: flex; gap: 8px; margin-top: 6px; }
+#player select { padding: 8px 10px; font-size: 14px; border-radius: 12px; }
+#time { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--dim); direction: ltr; min-width: 92px; text-align: center; }
+</style>
+</head>
+<body>
+<h1><span class="dot" id="dot"></span>محلل المقامات</h1>
+
+<div class="panel" id="inputPanel">
+  <div class="label">لينك يوتيوب (أو أي لينك أغنية)</div>
+  <div class="row">
+    <input class="grow" type="url" id="url" placeholder="https://youtu.be/…" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button class="accent" id="goBtn">حلّل</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <button class="grow" id="pasteBtn">لصق</button>
+    <button class="grow" id="fileBtn">رفع ملف من الآيفون</button>
+  </div>
+  <input type="file" id="file" class="hidden" accept="audio/*,video/*,.mp3,.wav,.m4a,.flac,.aac,.ogg,.opus,.wma,.aif,.aiff,.amr,.mp4,.mov">
+  <div class="dim" style="margin-top:8px">التحليل بيحصل على الكمبيوتر. سيب البرنامج مفتوح هناك، ولازم الاتنين على نفس الواي فاي.</div>
+</div>
+
+<div class="panel hidden" id="jobPanel">
+  <div class="label" id="jobTitle">جاري التحليل…</div>
+  <div class="bar"><div id="jobBar"></div></div>
+  <div class="row"><div class="grow dim" id="jobMsg"></div><button id="cancelBtn">إلغاء</button></div>
+</div>
+<div class="panel hidden" id="errPanel"><div class="err" id="errMsg"></div></div>
+
+<div id="result" class="hidden">
+  <div class="panel">
+    <div class="label" id="songTitle"></div>
+    <div class="big" id="maqamName"></div>
+    <div id="tonic"></div>
+    <div class="chips" id="chips"></div>
+    <div class="warn" id="warns"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="margin-bottom:8px">
+      <div class="grow label" style="margin:0">خط اللحن — دوس على أي مكان يشتغل من عنده</div>
+      <div class="zoom"><button id="zOut">−</button><button id="zIn">+</button></div>
+    </div>
+    <div id="plotWrap"><canvas id="plot"></canvas></div>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button data-t="maqam" class="on">المقامات</button>
+    <button data-t="notes">النوتات</button>
+    <button data-t="rhythm">الإيقاع</button>
+    <button data-t="organ">الأورج</button>
+  </div>
+
+  <div id="tab-maqam" class="tab">
+    <div class="panel">
+      <div class="label">المقاطع والتحويلات</div>
+      <div id="sections"></div>
+    </div>
+    <div class="panel">
+      <div class="label">الأجناس</div>
+      <div id="ajnas"></div>
+      <div class="dim" id="mdesc" style="margin-top:6px"></div>
+      <div class="card">
+        <div class="label">توزيع النوتات</div>
+        <div class="hist" id="hist"></div>
+        <div class="histlab" id="histlab"></div>
+      </div>
+      <div class="card"><div class="label">احتمالات تانية</div><div id="alts" class="dim"></div></div>
+    </div>
+  </div>
+
+  <div id="tab-notes" class="tab hidden">
+    <div class="panel">
+      <div class="row" style="margin-bottom:6px">
+        <div class="grow dim" id="noteCount"></div>
+        <label class="dim"><input type="checkbox" id="hideUnclear"> إخفاء غير الواضحة</label>
+      </div>
+      <table class="notes"><tbody id="notesBody"></tbody></table>
+      <div class="dim" style="margin-top:8px">◆ = ربع تون. دوس على نوتة يشتغل من عندها.</div>
+    </div>
+  </div>
+
+  <div id="tab-rhythm" class="tab hidden">
+    <div class="panel">
+      <div class="big" id="rName"></div>
+      <div id="rInfo"></div>
+      <div class="dim" id="rConf"></div>
+      <div class="card"><div class="label">الدم والتك (دورة واحدة)</div><svg id="dumtak" width="100%" viewBox="0 0 340 150"></svg>
+        <div class="dim" id="rPattern"></div></div>
+      <div class="card"><div class="label">على الأورج</div><div id="rStyle"></div></div>
+      <div class="card"><div class="label">احتمالات تانية</div><div id="rAlts" class="dim"></div></div>
+    </div>
+  </div>
+
+  <div id="tab-organ" class="tab hidden">
+    <div class="panel">
+      <div class="label" id="organModel"></div>
+      <select id="organSel"></select>
+      <div class="big" style="font-size:20px;margin-top:10px" id="organTitle"></div>
+      <svg id="kbd" width="100%" viewBox="0 0 350 130" style="margin-top:8px"></svg>
+      <table class="keys"><tbody id="keysBody"></tbody></table>
+      <div class="card" id="organInfo"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="label">تصدير</div>
+    <div class="row">
+      <a class="btn grow" id="pdfBtn" target="_blank">تقرير PDF</a>
+      <a class="btn grow" id="midiBtn">MIDI</a>
+    </div>
+    <a class="btn" id="midiNoBend" style="width:100%;margin-top:8px">MIDI من غير ربع تون (للأورج بعد ضبط Scale Tune)</a>
+  </div>
+</div>
+
+<div id="player" class="hidden">
+  <div class="top">
+    <button class="accent" id="playBtn" aria-label="تشغيل">▶</button>
+    <div class="grow">
+      <input type="range" id="seek" min="0" max="1000" value="0">
+      <div class="row"><div class="grow dim" id="nowSec" style="font-size:13px"></div><div id="time">0:00 / 0:00</div></div>
+    </div>
+  </div>
+  <div class="sub">
+    <select id="stemSel" class="grow"></select>
+    <select id="speedSel" style="width:auto">
+      <option value="0.5">×0.5</option><option value="0.75">×0.75</option>
+      <option value="0.9">×0.9</option><option value="1" selected>×1</option><option value="1.25">×1.25</option>
+    </select>
+  </div>
+  <audio id="au" preload="metadata" playsinline></audio>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  let token = qs.get('t') || '';
+  try { if (token) localStorage.setItem('mt', token); else token = localStorage.getItem('mt') || ''; } catch (e) {}
+  const H = () => ({ 'X-Token': token });
+  const withT = (u) => u + (u.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(token);
+
+  let R = null, version = -1, zoom = 1, polling = null, curSection = -1;
+  const au = $('au');
+
+  const fmt = (s) => { s = Math.max(0, s || 0); const m = Math.floor(s / 60); return m + ':' + String(Math.floor(s % 60)).padStart(2, '0'); };
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  async function api(path, opts = {}) {
+    const r = await fetch(path, { ...opts, headers: { ...(opts.headers || {}), ...H() } });
+    let j = null; try { j = await r.json(); } catch (e) {}
+    if (!r.ok) throw new Error((j && j.error) || ('خطأ ' + r.status));
+    return j;
+  }
+  function showErr(msg) { $('errMsg').textContent = msg; $('errPanel').classList.toggle('hidden', !msg); }
+
+  // ---------------------------------------------------------------- بدء التحليل
+  $('goBtn').onclick = async () => {
+    const url = $('url').value.trim();
+    if (!url) { showErr('الصق لينك الأول'); return; }
+    showErr('');
+    try { await api('/api/analyze/url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) }); startPolling(); }
+    catch (e) { showErr(e.message); }
+  };
+  $('url').addEventListener('keydown', e => { if (e.key === 'Enter') $('goBtn').click(); });
+  $('pasteBtn').onclick = async () => {
+    try { const t = await navigator.clipboard.readText(); if (t) { $('url').value = t.trim(); } } catch (e) { $('url').focus(); }
+  };
+  $('fileBtn').onclick = () => $('file').click();
+  $('file').onchange = () => {
+    const f = $('file').files[0]; if (!f) return;
+    showErr('');
+    $('jobPanel').classList.remove('hidden');
+    $('jobTitle').textContent = 'رفع ' + f.name;
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/analyze/upload');
+    xhr.setRequestHeader('X-Token', token);
+    xhr.setRequestHeader('X-Filename', encodeURIComponent(f.name));
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) { const p = e.loaded / e.total; $('jobBar').style.width = (p * 100) + '%'; $('jobMsg').textContent = 'رفع الملف للكمبيوتر… ' + Math.round(p * 100) + '%'; } };
+    xhr.onload = () => { let j = {}; try { j = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status !== 200 || !j.ok) { showErr(j.error || 'فشل الرفع'); $('jobPanel').classList.add('hidden'); } else startPolling(); };
+    xhr.onerror = () => { showErr('الرفع فشل — اتأكد إن الكمبيوتر شغال وعلى نفس الواي فاي'); $('jobPanel').classList.add('hidden'); };
+    xhr.send(f);
+    $('file').value = '';
+  };
+  $('cancelBtn').onclick = () => api('/api/cancel', { method: 'POST' }).catch(() => {});
+
+  // ---------------------------------------------------------------- متابعة الحالة
+  function startPolling() { if (!polling) polling = setInterval(poll, 1000); poll(); }
+  async function poll() {
+    let s;
+    try { s = await api('/api/state'); $('dot').classList.remove('off'); }
+    catch (e) { $('dot').classList.add('off'); return; }
+    const j = s.job, running = j.state === 'running';
+    $('jobPanel').classList.toggle('hidden', !running);
+    $('goBtn').disabled = running; $('fileBtn').disabled = running;
+    if (running) {
+      $('jobTitle').textContent = j.title || 'جاري التحليل…';
+      $('jobBar').style.width = Math.round(j.progress * 100) + '%';
+      $('jobMsg').textContent = j.message + '  (' + Math.round(j.progress * 100) + '%)';
+    }
+    if (j.state === 'error' && j.error) showErr(j.error);
+    if (s.has_result && s.version !== version) { version = s.version; loadResult(); }
+    if (!running && polling && !s.busy_external) { clearInterval(polling); polling = null; setTimeout(startPolling, 4000); }
+  }
+
+  // ---------------------------------------------------------------- عرض النتيجة
+  async function loadResult() {
+    try { R = await api('/api/result'); } catch (e) { return; }
+    $('result').classList.remove('hidden'); $('player').classList.remove('hidden');
+    $('songTitle').textContent = R.title;
+    $('maqamName').textContent = R.maqam.name; $('maqamName').style.color = R.maqam.color;
+    $('tonic').textContent = 'القرار: ' + R.maqam.tonic;
+    const r = R.rhythm;
+    $('chips').innerHTML = [
+      `${esc(r.name)} ${esc(r.meter)}`, `${Math.round(r.bpm)} BPM`, esc(R.tuning),
+      R.sections.length > 1 ? `${R.sections.length} مقاطع` : 'مقام واحد',
+    ].map(c => `<span class="chip">${c}</span>`).join('');
+    $('warns').textContent = (R.warnings || []).join(' • ');
+    // المشغل
+    const keep = au.src ? $('stemSel').value : 'mix';
+    $('stemSel').innerHTML = R.stems.map(s => `<option value="${s.key}">${esc(s.label)}</option>`).join('');
+    $('stemSel').value = R.stems.some(s => s.key === keep) ? keep : 'mix';
+    setSource($('stemSel').value, 0, false);
+    renderMaqam(); renderNotes(); renderRhythm(); renderOrgan(); drawPlot();
+    $('pdfBtn').href = withT('/api/export/report.pdf?v=' + version);
+    $('midiBtn').href = withT('/api/export/melody.mid?bend=1');
+    $('midiNoBend').href = withT('/api/export/melody.mid?bend=0');
+  }
+
+  function renderMaqam() {
+    $('sections').innerHTML = R.sections.map((s, i) => `
+      <button class="list-btn" data-start="${s.start}" style="background:${s.color}22;border-right:4px solid ${s.color}">
+        <div class="row"><b class="grow">${esc(s.name)}</b><span class="t">${fmt(s.start)} – ${fmt(s.end)}</span></div>
+        <div class="dim" style="text-align:right">القرار: ${esc(s.tonic)} • ${Math.round(s.probability * 100)}%</div>
+      </button>`).join('');
+    $('sections').querySelectorAll('button').forEach(b => b.onclick = () => playFrom(+b.dataset.start));
+    $('ajnas').innerHTML = R.maqam.ajnas.map(a => `<div>${esc(a)}</div>`).join('');
+    $('mdesc').textContent = R.maqam.description + ` — الثقة ${Math.round(R.maqam.probability * 100)}%`;
+    const h = R.maqam.histogram, mx = Math.max(...h, 1e-9), sc = new Set(R.maqam.scale_pcs);
+    $('hist').innerHTML = h.map((v, i) => `<div class="${i === R.maqam.tonic_pc ? 'tn' : sc.has(i) ? 's' : ''}" style="height:${Math.max(2, v / mx * 100)}%"></div>`).join('');
+    const L = ['C', '', 'C♯', '', 'D', '', 'E♭', '', 'E', '', 'F', '', 'F♯', '', 'G', '', 'A♭', '', 'A', '', 'B♭', '', 'B', ''];
+    $('histlab').innerHTML = L.map(l => `<span>${l}</span>`).join('');
+    $('alts').innerHTML = R.maqam.alternatives.map(a => `<div>• ${esc(a)}</div>`).join('') || '—';
+  }
+
+  function renderNotes() {
+    const hide = $('hideUnclear').checked;
+    const notes = R.notes.filter(n => !hide || n.clear);
+    $('noteCount').textContent = `${R.notes.length} نوتة — ${R.notes.filter(n => n.clear).length} واضحة`;
+    $('notesBody').innerHTML = notes.map(n => `
+      <tr class="${n.clear ? '' : 'unclear'}" data-s="${n.start}">
+        <td class="ltr">${fmt(n.start)}</td>
+        <td class="${n.qt && n.clear ? 'qt' : ''}">${esc(n.solfege)}${n.qt ? ' ◆' : ''}</td>
+        <td class="ltr">${esc(n.western)}</td>
+        <td>${esc(n.arabic)}</td>
+        <td class="ltr">${n.clear ? Math.round(n.conf * 100) + '%' : 'غير واضحة'}</td>
+      </tr>`).join('');
+  }
+  $('hideUnclear').onchange = () => R && renderNotes();
+  $('notesBody').addEventListener('click', e => { const tr = e.target.closest('tr'); if (tr) playFrom(Math.max(0, +tr.dataset.s - 0.3)); });
+
+  function renderRhythm() {
+    const r = R.rhythm;
+    $('rName').textContent = `${r.name} (${r.name_en})`;
+    $('rInfo').textContent = `الميزان ${r.meter} • ${Math.round(r.bpm)} BPM`;
+    $('rConf').textContent = `درجة الثقة ${Math.round(r.confidence * 100)}%` + (r.found ? '' : ' — مافيش إيقاع واضح');
+    const n = r.cells.length, cw = 320 / n; let s = '';
+    r.cells.forEach((c, i) => {
+      const x = 10 + cw * (i + .5);
+      s += `<text x="${x}" y="12" fill="#9C9CA6" font-size="10" text-anchor="middle">${i + 1}</text>`;
+      if (c === 'D') s += `<circle cx="${x}" cy="40" r="${Math.min(15, cw * .4)}" fill="#5AA9FF"/><text x="${x}" y="44" fill="#0B1726" font-size="11" text-anchor="middle">دم</text>`;
+      else if (c === 'T') s += `<circle cx="${x}" cy="40" r="${Math.min(10, cw * .3)}" fill="none" stroke="#F2F2F4" stroke-width="1.6"/><text x="${x}" y="66" fill="#F2F2F4" font-size="10" text-anchor="middle">تك</text>`;
+      else s += `<circle cx="${x}" cy="40" r="2" fill="#9C9CA6"/>`;
+      const d = r.dum[i] || 0, t = r.tak[i] || 0, bw = Math.max(3, cw * .18);
+      s += `<rect x="${x - bw - 1}" y="${145 - d * 60}" width="${bw}" height="${d * 60}" rx="2" fill="#5AA9FF"/>`;
+      s += `<rect x="${x + 1}" y="${145 - t * 60}" width="${bw}" height="${t * 60}" rx="2" fill="#F2F2F4"/>`;
+    });
+    $('dumtak').innerHTML = s;
+    $('rPattern').textContent = 'الأعمدة = اللي اتسمع فعلاً (الأزرق دم، الأبيض تك)';
+    $('rStyle').innerHTML = `Style مقترح: ${esc(r.style)}<br>Tempo: <b class="ltr">${r.tempo}</b>`;
+    $('rAlts').textContent = r.alternatives.join('، ') || '—';
+  }
+
+  function renderOrgan() {
+    $('organModel').textContent = 'الأورج: ' + R.organ_model + ' — Scale Tune';
+    $('organSel').innerHTML = `<option value="-1">الأغنية كلها — ${esc(R.maqam.name)}</option>` +
+      R.sections.map((s, i) => `<option value="${i}">${fmt(s.start)}–${fmt(s.end)} ${esc(s.name)}</option>`).join('');
+    showOrgan(-1);
+  }
+  $('organSel').onchange = () => showOrgan(+$('organSel').value);
+  function showOrgan(i) {
+    const o = i < 0 ? R.organ : R.sections[i].organ;
+    $('organTitle').textContent = o.title;
+    // كيبورد أوكتاف واحد: المفاتيح المتظبطة متلونة ومكتوب عليها الـ cents
+    const white = [0, 2, 4, 5, 7, 9, 11], black = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 };
+    const W = 350 / 7; let s = '';
+    white.forEach((k, j) => {
+      const on = o.offsets[k] !== 0;
+      s += `<rect x="${j * W + 1}" y="0" width="${W - 2}" height="126" rx="6" fill="${on ? '#5AA9FF' : '#E9E9EE'}"/>`;
+      s += `<text x="${j * W + W / 2}" y="116" font-size="12" text-anchor="middle" fill="#0B1726">${o.keys[k]}</text>`;
+      if (on) s += `<text x="${j * W + W / 2}" y="98" font-size="14" font-weight="700" text-anchor="middle" fill="#0B1726">${o.offsets[k] > 0 ? '+' : ''}${o.offsets[k]}</text>`;
+    });
+    Object.entries(black).forEach(([k, j]) => {
+      k = +k; const on = o.offsets[k] !== 0, x = (j + 1) * W - W * .3;
+      s += `<rect x="${x}" y="0" width="${W * .6}" height="76" rx="4" fill="${on ? '#5AA9FF' : '#26262B'}"/>`;
+      if (on) s += `<text x="${x + W * .3}" y="66" font-size="11" font-weight="700" text-anchor="middle" fill="#0B1726">${o.offsets[k] > 0 ? '+' : ''}${o.offsets[k]}</text>`;
+    });
+    $('kbd').innerHTML = s;
+    $('keysBody').innerHTML = o.keys.map((k, j) => `<tr class="${o.offsets[j] ? 'on' : ''}"><td>${esc(o.keys_ar[j])}</td><td class="ltr">${k}</td><td class="ltr">${o.offsets[j] > 0 ? '+' : ''}${o.offsets[j]}</td></tr>`).join('');
+    $('organInfo').innerHTML = `<div>Master Tune: <b class="ltr">${o.master_tune.toFixed(1)}</b> هرتز</div>
+      <div style="margin-top:6px">Style: ${esc(o.style)} — Tempo: <b class="ltr">${o.tempo}</b></div>
+      <div class="dim" style="margin-top:8px">${o.notes.map(esc).join('<br>')}</div>`;
+  }
+
+  // ---------------------------------------------------------------- رسم اللحن
+  const cv = $('plot'), wrap = $('plotWrap');
+  function drawPlot() {
+    if (!R) return;
+    const dpr = window.devicePixelRatio || 1, Wv = wrap.clientWidth, Hh = 260;
+    const W = Math.round(Wv * zoom), left = 64, top = 26, bottom = 20;
+    cv.style.width = W + 'px'; cv.style.height = Hh + 'px'; cv.width = W * dpr; cv.height = Hh * dpr;
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, Hh);
+    const pw = W - left - 8, ph = Hh - top - bottom, D = R.duration || 1;
+    const X = t => left + t / D * pw, Y = c => top + ph - (c - R.c_min) / (R.c_max - R.c_min) * ph;
+    g.font = '10px -apple-system, sans-serif'; g.textBaseline = 'middle';
+    const pxq = ph / ((R.c_max - R.c_min) / 50);
+    R.grid.forEach(gl => {
+      const y = Y(gl.c); if (y < top - 1 || y > top + ph + 1) return;
+      g.strokeStyle = gl.tonic ? '#5AA9FF' : (gl.qt ? '#25252A' : '#2E2E34'); g.lineWidth = 1;
+      g.setLineDash(gl.tonic ? [4, 3] : []); g.beginPath(); g.moveTo(left, y); g.lineTo(left + pw, y); g.stroke();
+      if ((gl.scale && pxq >= 5) || gl.tonic) { g.fillStyle = gl.tonic ? '#5AA9FF' : '#9C9CA6'; g.textAlign = 'right'; g.fillText(gl.label, left - 4, y); }
+    });
+    g.setLineDash([]);
+    R.sections.forEach(s => {
+      const x0 = X(s.start), x1 = X(s.end);
+      g.fillStyle = s.color + '22'; g.fillRect(x0, top, x1 - x0, ph);
+      g.fillStyle = s.color + '66'; roundRect(g, x0 + 1, 2, Math.max(2, x1 - x0 - 2), top - 6, 7); g.fill();
+      g.fillStyle = '#F2F2F4'; g.textAlign = 'center'; g.font = 'bold 11px -apple-system, sans-serif';
+      if (x1 - x0 > 40) g.fillText(s.name, (x0 + x1) / 2, top / 2 - 1, x1 - x0 - 8);
+      g.font = '10px -apple-system, sans-serif';
+    });
+    const colorAt = t => { for (const s of R.sections) if (t >= s.start && t < s.end) return s.color; return '#5AA9FF'; };
+    const t = R.melody.t, c = R.melody.c; g.lineWidth = 1.8; g.lineJoin = 'round';
+    let open = false, col = null;
+    for (let i = 0; i < t.length; i++) {
+      if (c[i] === null) { if (open) { g.stroke(); open = false; } continue; }
+      const x = X(t[i]), y = Y(c[i]), cc = colorAt(t[i]);
+      if (!open || cc !== col) { if (open) { g.lineTo(x, y); g.stroke(); } g.strokeStyle = cc; col = cc; g.beginPath(); g.moveTo(x, y); open = true; }
+      else g.lineTo(x, y);
+    }
+    if (open) g.stroke();
+    g.fillStyle = '#9C9CA6'; g.textAlign = 'center';
+    const step = [5, 10, 15, 30, 60, 120].find(s => pw / (D / s) > 50) || 300;
+    for (let tt = 0; tt <= D; tt += step) g.fillText(fmt(tt), X(tt), Hh - 9);
+    drawHead();
+  }
+  function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+  let headEl = null;
+  function drawHead() {
+    if (!R) return;
+    if (!headEl) { headEl = document.createElement('div'); headEl.style.cssText = 'position:absolute;top:0;width:2px;height:260px;background:#F2F2F4;pointer-events:none;border-radius:1px'; wrap.style.position = 'relative'; wrap.appendChild(headEl); }
+    const W = cv.clientWidth, x = 64 + (au.currentTime || 0) / (R.duration || 1) * (W - 72);
+    headEl.style.left = x + 'px';
+    if (!au.paused && zoom > 1) { const vx = x - wrap.scrollLeft; if (vx < 20 || vx > wrap.clientWidth - 40) wrap.scrollLeft = x - 40; }
+  }
+  cv.addEventListener('click', e => {
+    if (!R) return;
+    const rect = cv.getBoundingClientRect(), x = e.clientX - rect.left;
+    if (e.clientY - rect.top < 26) { const t = (x - 64) / (rect.width - 72) * R.duration; const s = R.sections.find(s => t >= s.start && t < s.end); if (s) return playFrom(s.start); }
+    playFrom(Math.max(0, Math.min(R.duration, (x - 64) / (rect.width - 72) * R.duration)));
+  });
+  $('zIn').onclick = () => { zoom = Math.min(8, zoom * 2); drawPlot(); };
+  $('zOut').onclick = () => { zoom = Math.max(1, zoom / 2); drawPlot(); };
+  window.addEventListener('resize', () => drawPlot());
+
+  // ---------------------------------------------------------------- المشغل
+  function setSource(stem, t, play) {
+    au.src = withT(`/api/audio/${stem}.m4a?v=${version}`);
+    au.playbackRate = +$('speedSel').value;
+    au.load();
+    const go = () => { try { au.currentTime = t || 0; } catch (e) {} au.playbackRate = +$('speedSel').value; if (play) au.play().catch(() => {}); };
+    au.addEventListener('loadedmetadata', go, { once: true });
+  }
+  function playFrom(t) {
+    if (!R) return;
+    if (au.readyState >= 1) { au.currentTime = t; au.play().catch(() => {}); }
+    else setSource($('stemSel').value, t, true);
+  }
+  $('playBtn').onclick = () => { if (au.paused) au.play().catch(() => {}); else au.pause(); };
+  au.addEventListener('play', () => $('playBtn').textContent = '❚❚');
+  au.addEventListener('pause', () => $('playBtn').textContent = '▶');
+  let seeking = false;
+  $('seek').addEventListener('input', () => { seeking = true; const t = $('seek').value / 1000 * (au.duration || R.duration); $('time').textContent = fmt(t) + ' / ' + fmt(R.duration); });
+  $('seek').addEventListener('change', () => { au.currentTime = $('seek').value / 1000 * (au.duration || R.duration); seeking = false; });
+  $('stemSel').onchange = () => setSource($('stemSel').value, au.currentTime, !au.paused);
+  $('speedSel').onchange = () => { au.playbackRate = +$('speedSel').value; au.preservesPitch = true; };
+  au.addEventListener('timeupdate', () => {
+    if (!R) return;
+    const t = au.currentTime, D = au.duration || R.duration;
+    if (!seeking) $('seek').value = Math.round(t / D * 1000);
+    $('time').textContent = fmt(t) + ' / ' + fmt(R.duration);
+    const i = R.sections.findIndex(s => t >= s.start && t < s.end);
+    if (i >= 0) { const s = R.sections[i]; $('nowSec').innerHTML = `<span style="color:${s.color}">●</span> ${esc(s.name)}`; }
+    drawHead();
+  });
+
+  // ---------------------------------------------------------------- التابات
+  $('tabs').querySelectorAll('button').forEach(b => b.onclick = () => {
+    $('tabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('hidden', t.id !== 'tab-' + b.dataset.t));
+  });
+
+  if (!token) showErr('افتح الصفحة من الـ QR اللي في البرنامج على الكمبيوتر.');
+  startPolling();
+})();
+</script>
+</body>
+</html>

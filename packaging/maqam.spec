@@ -15,6 +15,7 @@ for pkg in ("librosa", "demucs", "torchcrepe", "yt_dlp_ejs", "lazy_loader", "res
     except Exception:
         pass
 datas += [(str(PKG / "icon.ico"), "packaging"), (str(PKG / "icon.png"), "packaging")]
+datas += [(str(ROOT / "maqam_app" / "mobile" / "static"), "maqam_app/mobile/static")]
 if (PKG / "models").exists():
     datas += [(str(PKG / "models"), "models")]
 
@@ -25,7 +26,7 @@ if (PKG / "bin").exists():
 
 hiddenimports = []
 for pkg in ("yt_dlp", "demucs", "torchcrepe", "julius", "openunmix", "einops", "mido",
-            "sklearn.utils", "soxr", "maqam_app", "huggingface_hub", "safetensors"):
+            "sklearn.utils", "soxr", "maqam_app", "huggingface_hub", "safetensors", "segno"):
     try:
         hiddenimports += collect_submodules(pkg)
     except Exception:

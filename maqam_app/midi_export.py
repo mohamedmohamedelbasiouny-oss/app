@@ -27,7 +27,9 @@ def export_midi(notes: list[NoteEvent], path: str | Path, bpm: float = 120.0,
     tr = mido.MidiTrack()
     mid.tracks.append(tr)
     tempo = mido.bpm2tempo(bpm)
-    tr.append(mido.MetaMessage("track_name", name=title[:60], time=0))
+    # mido بيكتب الاسم latin-1؛ بنحط بايتات UTF-8 عشان الأسامي العربي تتحفظ من غير ما يقع
+    safe_name = title[:60].encode("utf-8")[:120].decode("latin-1")
+    tr.append(mido.MetaMessage("track_name", name=safe_name, time=0))
     tr.append(mido.MetaMessage("set_tempo", tempo=tempo, time=0))
     tr.append(mido.Message("program_change", program=program, channel=0, time=0))
     # ضبط مدى الـ Pitch Bend (RPN 0)

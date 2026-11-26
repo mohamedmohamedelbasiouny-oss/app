@@ -68,7 +68,8 @@ def test_pipeline_notes(result):
 
 def test_midi_export(result, tmp_path):
     from maqam_app.midi_export import export_midi
-    p = export_midi(result.notes, tmp_path / "m.mid", bpm=result.rhythm.bpm)
+    p = export_midi(result.notes, tmp_path / "m.mid", bpm=result.rhythm.bpm,
+                    title="أغنية بياتي")   # اسم عربي
     mid = mido.MidiFile(p)
     ons = [m for m in mid.tracks[0] if m.type == "note_on"]
     bends = [m for m in mid.tracks[0] if m.type == "pitchwheel" and m.pitch != 0]
