@@ -59,6 +59,38 @@ def estimate_tuning(track: PitchTrack, conf_thr: float = 0.5) -> TuningInfo:
                       reliability=reliability)
 
 
+def spectral_offset(y: np.ndarray, sr: int) -> float | None:
+    """تقدير الضبط من الطيف مباشرة (librosa) — مستقل عن متتبع اللحن."""
+    try:
+        import librosa
+
+        if y.size < sr:
+            return None
+        return float(100.0 * librosa.estimate_tuning(y=y, sr=sr, resolution=0.01))
+    except Exception:
+        return None
+
+
+def robust_tuning(track: PitchTrack, extra_signals: list[tuple[np.ndarray, int]]) -> TuningInfo:
+    """وسيط (median) لأكتر من تقدير: من اللحن نفسه + من طيف صوت المطرب + من طيف الأغنية كلها.
+    كده لو تقدير واحد اتلخبط (مثلاً بسبب فصل الصوت) التاني بيصححه."""
+    base = estimate_tuning(track)
+    ests = [base.offset_cents] if base.reliability > 0 else []
+    for y, sr in extra_signals:
+        o = spectral_offset(y, sr)
+        if o is not None and np.isfinite(o):
+            ests.append(o)
+    if not ests:
+        return base
+    # الاختلافات حوالين ±50 دائرية — بنقرّبهم لنفس الفرع قبل الوسيط
+    ref = ests[0]
+    adj = [((e - ref + 50) % 100) - 50 + ref for e in ests]
+    off = float(np.median(adj))
+    off = ((off + 50) % 100) - 50
+    return TuningInfo(offset_cents=off, reference_hz=float(A4_HZ * 2 ** (off / 1200)),
+                      reliability=base.reliability)
+
+
 def corrected_cents(track: PitchTrack, tuning: TuningInfo) -> np.ndarray:
     """الـ cents بعد التصحيح (نسبة لـ A4 = 440 مثالي)."""
     return hz_to_cents(track.f0) - tuning.offset_cents

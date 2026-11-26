@@ -16,7 +16,7 @@ from .pitch import PitchTrack, track
 from .rhythm import RhythmResult, analyze as analyze_rhythm
 from .separation import Stems, save_stems, separate
 from .transcribe import NoteEvent, transcribe
-from .tuning import TuningInfo, corrected_cents, estimate_tuning
+from .tuning import TuningInfo, corrected_cents, robust_tuning
 
 ProgressCB = Callable[[float, str], None]
 
@@ -146,7 +146,8 @@ def analyze_file(path: str | Path, settings: Settings | None = None,
     # --- الضبط + النوتات + المقامات
     p = _stage(progress, 0.82, 0.9, cancel)
     p(0.0, "اكتشاف ضبط التسجيل (لا = 440؟)…")
-    tuning = estimate_tuning(pt)
+    mix_a = librosa.resample(audio.mono(), orig_sr=audio.sr, target_sr=ANALYSIS_SR)
+    tuning = robust_tuning(pt, [(melody_y, ANALYSIS_SR), (mix_a, ANALYSIS_SR)])
     cents = corrected_cents(pt, tuning)
     p(0.3, "كتابة النوتات…")
     notes = transcribe(pt.times, cents, pt.confidence)
@@ -158,7 +159,6 @@ def analyze_file(path: str | Path, settings: Settings | None = None,
     p(0.0, "تحليل الإيقاع…")
     t3 = time.time()
     drums = to_analysis(stems.drums)
-    mix_a = librosa.resample(audio.mono(), orig_sr=audio.sr, target_sr=ANALYSIS_SR)
     rhythm = analyze_rhythm(drums, ANALYSIS_SR, y_full=mix_a)
     if not rhythm.percussion_found:
         warnings.append("مافيش إيقاع واضح في الأغنية — نتيجة الإيقاع تقريبية.")
