@@ -94,6 +94,19 @@ button:disabled { opacity: .45; }
 .ltr { direction: ltr; unicode-bidi: isolate; }
 svg { direction: ltr; }
 
+/* وضع التمرين */
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--surface2); border-radius: 12px; padding: 3px; margin-bottom: 10px; }
+.seg button { background: transparent; border: none; padding: 9px 4px; font-size: 14.5px; color: var(--dim); border-radius: 10px; }
+.seg button.on { background: var(--surface); color: var(--text); }
+#practice { background: #FBF7EE; border-radius: 12px; color: #1b2a4a; }
+#pHead { padding: 8px 12px; font-size: 13.5px; color: #2d5a2d; }
+#pHead b.t { display: block; font-size: 18px; color: #1b2a4a; }
+#scoreBox { height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; direction: ltr; background: #FBF7EE; position: relative; }
+#scoreBox svg { width: 100%; height: auto; display: block; }
+#scoreBox g.cur, #scoreBox g.cur * { fill: #2FA84F !important; stroke: #2FA84F; }
+#pianoBox { direction: ltr; padding: 6px 4px 8px; background: #2a2a2e; border-radius: 0 0 12px 12px; }
+#pianoNow { text-align: center; color: #1b2a4a; font-weight: 700; padding: 4px; min-height: 26px; }
+
 /* المشغل */
 #player {
   position: fixed; left: 10px; right: 10px; bottom: calc(var(--safe-b) + 10px); z-index: 10;
@@ -142,11 +155,20 @@ svg { direction: ltr; }
   </div>
 
   <div class="panel">
-    <div class="row" style="margin-bottom:8px">
-      <div class="grow label" style="margin:0">خط اللحن — دوس على أي مكان يشتغل من عنده</div>
-      <div class="zoom"><button id="zOut">−</button><button id="zIn">+</button></div>
+    <div class="seg" id="viewSeg"><button data-v="practice" class="on">🎹 النوتة والبيانو</button><button data-v="plot">خط اللحن</button></div>
+    <div id="practice">
+      <div id="pHead"></div>
+      <div id="scoreBox"></div>
+      <div id="pianoNow"></div>
+      <div id="pianoBox"><svg id="piano" width="100%" viewBox="0 0 700 140"></svg></div>
     </div>
-    <div id="plotWrap"><canvas id="plot"></canvas></div>
+    <div id="plotPanel" class="hidden">
+      <div class="row" style="margin-bottom:8px">
+        <div class="grow label" style="margin:0">خط اللحن — دوس على أي مكان يشتغل من عنده</div>
+        <div class="zoom"><button id="zOut">−</button><button id="zIn">+</button></div>
+      </div>
+      <div id="plotWrap"><canvas id="plot"></canvas></div>
+    </div>
   </div>
 
   <div class="tabs" id="tabs">
@@ -327,7 +349,9 @@ svg { direction: ltr; }
     $('stemSel').innerHTML = R.stems.map(s => `<option value="${s.key}">${esc(s.label)}</option>`).join('');
     $('stemSel').value = R.stems.some(s => s.key === keep) ? keep : 'mix';
     setSource($('stemSel').value, 0, false);
-    renderMaqam(); renderNotes(); renderRhythm(); renderOrgan(); drawPlot();
+    renderMaqam(); renderNotes(); renderRhythm(); renderOrgan(); drawPlot(); loadScore();
+    if (!R.score) setView('plot');
+    else if (!stemChosen) { const k = R.stems.find(s => s.key === 'piano_band') || R.stems.find(s => s.key === 'piano'); if (k) { $('stemSel').value = k.key; setSource(k.key, 0, false); } }
     $('pdfBtn').href = withT('/api/export/report.pdf?v=' + version);
     $('midiBtn').href = withT('/api/export/melody.mid?bend=1');
     $('midiNoBend').href = withT('/api/export/melody.mid?bend=0');
@@ -510,6 +534,87 @@ svg { direction: ltr; }
     if (i >= 0) { const s = R.sections[i]; $('nowSec').innerHTML = `<span style="color:${s.color}">●</span> ${esc(s.name)}`; }
     drawHead();
   });
+
+  // ---------------------------------------------------------------- وضع التمرين
+  let stemChosen = false, curNote = null, PIANO = null;
+  $('stemSel').addEventListener('change', () => stemChosen = true);
+  function setView(v) {
+    $('viewSeg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+    $('practice').classList.toggle('hidden', v !== 'practice');
+    $('plotPanel').classList.toggle('hidden', v !== 'plot');
+    if (v === 'plot') drawPlot();
+  }
+  $('viewSeg').querySelectorAll('button').forEach(b => b.onclick = () => setView(b.dataset.v));
+
+  async function loadScore() {
+    const sc = R.score; if (!sc) return;
+    $('pHead').innerHTML = `<b class="t">${esc(R.title)}</b>المقام: <b>${esc(R.maqam.name)}</b> (${esc(R.maqam.tonic)}) • إيقاع: <b>${esc(R.rhythm.name)}</b> ${esc(sc.meter)} • <span class="ltr">♩ = ${sc.bpm}</span>`;
+    let html = '';
+    for (let i = 0; i < sc.pages; i++) {
+      const r = await fetch(withT(`/api/score/${i}.svg?v=${version}`), { headers: H() });
+      html += await r.text();
+    }
+    $('scoreBox').innerHTML = html; $('scoreBox').scrollTop = 0;
+    $('scoreBox').querySelectorAll('g.note').forEach(g => g.addEventListener('click', () => {
+      const n = sc.notes.find(n => n.ids.includes(g.id)); if (n) playFrom(n.s);
+    }));
+    const keys = sc.notes.map(n => n.key);
+    let lo = Math.floor(Math.min(...keys) / 12) * 12, hi = (Math.floor(Math.max(...keys) / 12) + 1) * 12;
+    if (hi - lo < 24) hi = lo + 24; hi = Math.min(hi, lo + 36);
+    PIANO = { lo, hi }; drawPiano(null);
+    curNote = null;
+  }
+  const WHITE = { 0: ['Do', 'دو'], 2: ['Re', 'ري'], 4: ['Mi', 'مي'], 5: ['Fa', 'فا'], 7: ['Sol', 'صول'], 9: ['La', 'لا'], 11: ['Si', 'سي'] };
+  const BLACK = { 1: 'Di', 3: 'Ri', 6: 'Fi', 8: 'Si', 10: 'Li' };
+  function drawPiano(active) {
+    if (!PIANO) return;
+    const whites = []; for (let m = PIANO.lo; m <= PIANO.hi; m++) if (WHITE[m % 12]) whites.push(m);
+    const W = 700 / whites.length, Hh = 140, bh = 86, pos = {}; whites.forEach((m, i) => pos[m] = i);
+    const tuned = R.organ.offsets; let s = '';
+    const act = active ? active.key : null;
+    whites.forEach((m, i) => {
+      const on = m === act;
+      s += `<rect x="${i * W + 1}" y="0" width="${W - 2}" height="${Hh - 2}" rx="4" fill="${on ? '#3DBE5B' : '#fff'}" stroke="#999"/>`;
+      s += `<text x="${i * W + W / 2}" y="${Hh - 24}" font-size="${Math.min(14, W / 2.6)}" text-anchor="middle" fill="#111">${WHITE[m % 12][0]}</text>`;
+      s += `<text x="${i * W + W / 2}" y="${Hh - 8}" font-size="${Math.min(11, W / 3.2)}" text-anchor="middle" fill="#555">${WHITE[m % 12][1]}</text>`;
+      if (tuned[m % 12]) s += `<text x="${i * W + W / 2}" y="${bh + 18}" font-size="10" font-weight="700" text-anchor="middle" fill="#1d5fae">${tuned[m % 12]}</text>`;
+    });
+    for (let m = PIANO.lo; m <= PIANO.hi; m++) {
+      if (WHITE[m % 12] || pos[m - 1] === undefined) continue;
+      const x = (pos[m - 1] + 1) * W - W * .3, on = m === act;
+      s += `<rect x="${x}" y="0" width="${W * .6}" height="${bh}" rx="3" fill="${on ? '#3DBE5B' : '#232327'}"/>`;
+      s += `<text x="${x + W * .3}" y="${bh - 8}" font-size="${Math.min(10, W / 3.4)}" text-anchor="middle" fill="#fff">${BLACK[m % 12]}</text>`;
+      if (tuned[m % 12]) s += `<text x="${x + W * .3}" y="14" font-size="9" font-weight="700" text-anchor="middle" fill="#5AA9FF">${tuned[m % 12]}</text>`;
+    }
+    if (active && active.bend) {
+      const white = !!WHITE[act % 12], cx = white ? pos[act] * W + W / 2 : (pos[act - 1] + 1) * W, y = white ? 62 : 40;
+      s += `<rect x="${cx - 18}" y="${y - 12}" width="36" height="24" rx="8" fill="#5AA9FF"/><text x="${cx}" y="${y + 5}" font-size="14" text-anchor="middle" fill="#0B1726">${active.bend < 0 ? '½♭' : '½♯'}</text>`;
+    }
+    $('piano').innerHTML = s;
+  }
+  function findNote(t) {
+    const ns = R.score.notes; let lo = 0, hi = ns.length - 1;
+    while (lo <= hi) { const m = (lo + hi) >> 1; if (t < ns[m].s) hi = m - 1; else if (t >= ns[m].e) lo = m + 1; else return ns[m]; }
+    return null;
+  }
+  function practiceTick() {
+    if (R && R.score && !$('practice').classList.contains('hidden')) {
+      const n = findNote(au.currentTime || 0);
+      if (n !== curNote) {
+        $('scoreBox').querySelectorAll('g.cur').forEach(g => g.classList.remove('cur'));
+        if (n) {
+          n.ids.forEach(id => { const g = document.getElementById(id); if (g) g.classList.add('cur'); });
+          const g = document.getElementById(n.ids[0]);
+          if (g) { const box = $('scoreBox'), r = g.getBoundingClientRect(), br = box.getBoundingClientRect();
+            if (r.top < br.top + 20 || r.bottom > br.bottom - 30) box.scrollTop += (r.top - br.top) - box.clientHeight * 0.3; }
+          $('pianoNow').textContent = `${n.solfege}  (${n.western})`;
+        } else $('pianoNow').textContent = '';
+        drawPiano(n); curNote = n;
+      }
+    }
+    requestAnimationFrame(practiceTick);
+  }
+  requestAnimationFrame(practiceTick);
 
   // ---------------------------------------------------------------- التابات
   $('tabs').querySelectorAll('button').forEach(b => b.onclick = () => {

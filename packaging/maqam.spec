@@ -9,7 +9,7 @@ ROOT = Path(SPECPATH).parent
 PKG = ROOT / "packaging"
 
 datas = []
-for pkg in ("librosa", "demucs", "torchcrepe", "yt_dlp_ejs", "lazy_loader", "resampy"):
+for pkg in ("librosa", "demucs", "torchcrepe", "yt_dlp_ejs", "lazy_loader", "resampy", "verovio"):
     try:
         datas += collect_data_files(pkg)
     except Exception:
@@ -26,7 +26,7 @@ if (PKG / "bin").exists():
 
 hiddenimports = []
 for pkg in ("yt_dlp", "demucs", "torchcrepe", "julius", "openunmix", "einops", "mido",
-            "sklearn.utils", "soxr", "maqam_app", "huggingface_hub", "safetensors", "segno"):
+            "sklearn.utils", "soxr", "maqam_app", "huggingface_hub", "safetensors", "segno", "verovio"):
     try:
         hiddenimports += collect_submodules(pkg)
     except Exception:

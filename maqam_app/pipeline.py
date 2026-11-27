@@ -47,6 +47,7 @@ class AnalysisResult:
     warnings: list[str] = field(default_factory=list)
     timings: dict[str, float] = field(default_factory=dict)
     source_url: str | None = None
+    score: object | None = None          # النوتة الموسيقية (وضع التمرين)
 
 
 class Cancelled(Exception):
@@ -169,15 +170,28 @@ def analyze_file(path: str | Path, settings: Settings | None = None,
 
     playback = {"mix": play_mix}
     playback.update(stems.files)
-    timings["total"] = time.time() - t0
-    if progress:
-        progress(1.0, "خلص التحليل")
-    return AnalysisResult(
+    res = AnalysisResult(
         source=path, title=title or path.stem, duration=duration, playback=playback,
         separation_method=stems.method, melody_source=src_name, pitch=pt, cents=cents,
         tuning=tuning, notes=notes, maqam=mres, rhythm=rhythm, organ=organ,
         section_organ=section_organ, warnings=warnings, timings=timings,
         source_url=source_url)
+
+    # --- وضع التمرين: النوتة الموسيقية + البيانو اللي بيعزف اللحن
+    _stage(progress, 0.99, 1.0, cancel)(0.0, "كتابة النوتة الموسيقية وصوت البيانو…")
+    try:
+        from .melody_synth import write_practice_stems
+        from .score import build_score
+
+        res.score = build_score(res)
+        out_dir = paths.cache_dir() / f"practice_{key}_{len(res.notes)}"
+        res.playback.update(write_practice_stems(res.score, res, out_dir))
+    except Exception as e:  # وضع التمرين مش لازم يوقّف التحليل كله
+        warnings.append(f"مقدرتش أعمل النوتة الموسيقية: {e}")
+    timings["total"] = time.time() - t0
+    if progress:
+        progress(1.0, "خلص التحليل")
+    return res
 
 
 def analyze_url(url: str, settings: Settings | None = None,

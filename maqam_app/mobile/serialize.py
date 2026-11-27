@@ -111,6 +111,25 @@ def result_to_json(res: AnalysisResult) -> dict:
         "melody": _melody(res),
         "grid": grid,
         "c_min": c_min, "c_max": c_max,
-        "stems": [{"key": k, "label": STEM_LABELS[k]} for k in ("mix", "vocals", "instruments", "drums")
+        "stems": [{"key": k, "label": STEM_LABELS[k]}
+                  for k in ("mix", "piano_band", "piano", "vocals", "instruments", "drums")
                   if k in res.playback],
+        "score": _score(res),
     }
+
+
+def _score(res):
+    sc = getattr(res, "score", None)
+    if sc is None:
+        return None
+    from ..notes import midi_from_cents
+
+    notes = []
+    for n in sc.notes:
+        midi, bend = midi_from_cents(qt_index_to_cents(n.index))
+        nn = n.name
+        notes.append({"s": round(n.start, 3), "e": round(n.end, 3), "ids": n.ids,
+                      "key": midi, "bend": int(round(bend)), "solfege": nn.solfege,
+                      "western": nn.western})
+    return {"pages": len(sc.svg_pages), "bpm": round(sc.bpm), "meter": sc.meter,
+            "notes": notes}

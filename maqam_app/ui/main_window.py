@@ -17,6 +17,7 @@ from ..youtube import is_url, normalize_url
 from . import theme
 from .icons import icon
 from .panels import MaqamPanel, NotesPanel, OrganPanel, RhythmPanel
+from .practice import PracticeView
 from .widgets import MelodyView, Panel, fmt_clock
 from .mobile_dialog import GuiInvoker, MobileDialog
 from .worker import AnalysisWorker, start_worker
@@ -296,6 +297,20 @@ class MainWindow(QMainWindow):
         self.lbl_chips.setObjectName("dim")
         self.lbl_chips.setWordWrap(True)
         head.addWidget(self.lbl_song, 1)
+        # التبديل بين رسم اللحن ووضع التمرين (نوتة + بيانو)
+        self.view_group = QButtonGroup(self)
+        for i, (txt, ic) in enumerate([("خط اللحن", "wave"), ("النوتة والبيانو (تمرين)", "keys")]):
+            b = QToolButton()
+            b.setObjectName("tab")
+            b.setText(txt)
+            b.setIcon(icon(ic, theme.TEXT))
+            b.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+            b.setCheckable(True)
+            b.setCursor(Qt.PointingHandCursor)
+            self.view_group.addButton(b, i)
+            head.addWidget(b)
+        self.view_group.button(0).setChecked(True)
+        self.view_group.idClicked.connect(self._switch_view)
         self.chk_notes = QCheckBox("إظهار النوتات")
         self.chk_notes.setChecked(True)
         self.chk_notes.toggled.connect(self._toggle_notes)
@@ -310,10 +325,14 @@ class MainWindow(QMainWindow):
         self.center_stack.addWidget(self.drop_hint)
         self.center_stack.addWidget(self.melody)
         self.center_stack.addWidget(self.progress_view)
+        self.practice = PracticeView()
+        self.practice.seekRequested.connect(self.play_from)
+        self.center_stack.addWidget(self.practice)
         self.view_panel.lay.addWidget(self.center_stack, 1)
         hint = QLabel("دوس على أي مكان في الرسم أو على اسم المقطع فوق يشتغل من عنده • "
                       "عجلة الماوس للزوم • اسحب للتحريك • دبل كليك يرجّع العرض كامل")
         hint.setObjectName("dim")
+        self.view_hint = hint
         self.view_panel.lay.addWidget(hint)
         center.addWidget(self.view_panel, 1)
 
@@ -421,6 +440,12 @@ class MainWindow(QMainWindow):
             self.audio_out.setVolume(0.8)
             self.vol.valueChanged.connect(lambda v: self.audio_out.setVolume(v / 100.0))
             self.player.positionChanged.connect(self._on_position)
+            self.player.setNotifyInterval(40) if hasattr(self.player, "setNotifyInterval") else None
+            if hasattr(self.player, "setPitchCompensation"):
+                try:   # التبطيء من غير ما الصوت يوطى أو يعلى
+                    self.player.setPitchCompensation(True)
+                except Exception:
+                    pass
             self.player.durationChanged.connect(lambda d: self.slider.setRange(0, int(d)))
             self.player.playbackStateChanged.connect(self._on_state)
         except Exception:
@@ -439,8 +464,38 @@ class MainWindow(QMainWindow):
             self._set_has_result(False)
             self.center_stack.setCurrentWidget(self.progress_view)
         else:
-            self.center_stack.setCurrentWidget(self.melody if self.result else self.drop_hint)
+            if self.result is None:
+                self.center_stack.setCurrentWidget(self.drop_hint)
+            elif self.view_group.checkedId() == 1 and self.result.score is not None:
+                self.center_stack.setCurrentWidget(self.practice)
+            else:
+                self.center_stack.setCurrentWidget(self.melody)
             self._set_has_result(self.result is not None)
+
+    def _switch_view(self, idx: int):
+        if not self.result:
+            self.view_group.button(0).setChecked(True)
+            return
+        if idx == 1:
+            if self.result.score is None:
+                QMessageBox.information(self, "التمرين", "مقدرتش أكتب النوتة للأغنية دي.")
+                self.view_group.button(0).setChecked(True)
+                return
+            self.center_stack.setCurrentWidget(self.practice)
+            self.chk_notes.setVisible(False)
+            self.view_hint.setVisible(False)
+            # أول مرة: نسمّعه البيانو مع الموسيقى
+            if not getattr(self, "_practice_stem_set", False):
+                self._practice_stem_set = True
+                for key in ("piano_band", "piano"):
+                    i = self.cmb_stem.findData(key)
+                    if i >= 0:
+                        self.cmb_stem.setCurrentIndex(i)
+                        break
+        else:
+            self.center_stack.setCurrentWidget(self.melody)
+            self.chk_notes.setVisible(True)
+            self.view_hint.setVisible(True)
 
     def _toggle_notes(self, on):
         self.melody.show_notes = on
@@ -583,7 +638,13 @@ class MainWindow(QMainWindow):
             text += "\n⚠ " + "  ".join(res.warnings)
         self.lbl_chips.setText(text)
         self.melody.set_result(res)
-        self.center_stack.setCurrentWidget(self.melody)
+        if res.score is not None:
+            self.practice.set_result(res)
+        self._practice_stem_set = False
+        practice_on = self.view_group.checkedId() == 1 and res.score is not None
+        self.center_stack.setCurrentWidget(self.practice if practice_on else self.melody)
+        if not practice_on:
+            self.view_group.button(0).setChecked(True)
         self.maqam_panel.set_result(res)
         self.notes_panel.set_result(res)
         self.rhythm_panel.set_result(res)
@@ -592,7 +653,7 @@ class MainWindow(QMainWindow):
 
         self.cmb_stem.blockSignals(True)
         self.cmb_stem.clear()
-        for key in ("mix", "vocals", "instruments", "drums"):
+        for key in ("mix", "piano_band", "piano", "vocals", "instruments", "drums"):
             if key in res.playback:
                 self.cmb_stem.addItem(STEM_LABELS[key], key)
         self.cmb_stem.blockSignals(False)
@@ -655,6 +716,8 @@ class MainWindow(QMainWindow):
         dur = self.result.duration if self.result else 0
         self.lbl_time.setText(f"{fmt_clock(ms / 1000)} / {fmt_clock(dur)}")
         self.melody.set_position(ms / 1000.0)
+        if self.center_stack.currentWidget() is self.practice:
+            self.practice.set_position(ms / 1000.0)
 
     def _on_state(self, state):
         playing = state == QMediaPlayer.PlayingState

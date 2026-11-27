@@ -414,7 +414,15 @@ def _make_handler(srv: MobileServer):
                 if data is None:
                     return self._json({"error": "no result"}, 404)
                 return self._send(200, data, "application/json; charset=utf-8")
-            m = re.fullmatch(r"/api/audio/(mix|vocals|instruments|drums)\.m4a", p)
+            m = re.fullmatch(r"/api/score/(\d+)\.svg", p)
+            if m:
+                with srv.lock:
+                    sc = getattr(srv.result, "score", None) if srv.result is not None else None
+                k = int(m.group(1))
+                if sc is None or not (0 <= k < len(sc.svg_pages)):
+                    return self._json({"error": "no score"}, 404)
+                return self._send(200, sc.svg_pages[k].encode("utf-8"), "image/svg+xml")
+            m = re.fullmatch(r"/api/audio/(mix|vocals|instruments|drums|piano|piano_band)\.m4a", p)
             if m:
                 f = srv.audio_file(m.group(1))
                 if not f:
