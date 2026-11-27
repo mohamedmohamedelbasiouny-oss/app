@@ -96,15 +96,27 @@ def transcribe(times: np.ndarray, cents: np.ndarray, conf: np.ndarray,
         idx = cents_to_qt_index(med)
         dev = med - qt_index_to_cents(idx)
         std = float(np.std(seg_c))
-        c_conf = float(np.clip(np.mean(conf[s:e]), 0, 1))
-        c_stab = float(np.clip(1.0 - max(0.0, std - 8.0) / 45.0, 0, 1))
-        c_grid = 1.0 - min(abs(dev), 25.0) / 25.0 * 0.5
+        # درجة الثقة — متظبطة على الغُنا العربي الحقيقي (اتجربت على أغنية حقيقية):
+        # الفيبراتو الطبيعي (لحد ~15 سنت) والتلوين الشرقي للدرجات مش أخطاء.
         dur = (e - s) * hop
-        c_dur = float(np.clip(dur / 0.15, 0.4, 1.0))
-        confidence = float(np.clip(c_conf ** 0.5 * c_stab * c_grid * c_dur, 0, 1))
+        per = float(np.mean(conf[s:e]))
+        c_conf = float(np.clip((per - 0.35) / 0.35, 0, 1))
+        c_stab = float(np.clip(1.0 - max(0.0, std - 15.0) / 50.0, 0.3, 1))
+        c_grid = 1.0 - min(abs(dev), 25.0) / 25.0 * 0.35
+        c_dur = float(np.clip(dur / 0.12, 0.45, 1.0))
+        confidence = float(np.clip(c_conf * c_stab * c_grid * c_dur, 0, 1))
         events.append(NoteEvent(start=float(times[s]), end=float(times[s] + (e - s) * hop),
                                 cents=med, index=idx, deviation=dev,
                                 confidence=confidence, name=name_from_index(idx)))
+    # تذبذب سريع بين درجتين (فيبراتو عنيف جدًا أو تريل): أ-ب-أ بنوتات قصيرة لازقة في بعض
+    # → النغمة نفسها مش واضحة، فبنقلل الثقة بدل ما نكتب درجات مش حقيقية
+    for i in range(1, len(events) - 1):
+        a, b, c = events[i - 1], events[i], events[i + 1]
+        if (a.index == c.index != b.index and b.duration < 0.12
+                and b.start - a.end < 0.04 and c.start - b.end < 0.04):
+            for ev in (a, b, c):
+                if ev.duration < 0.15:
+                    ev.confidence *= 0.6
     # دمج نوتات متتالية بنفس الاسم بينها فاصل صغير جدًا
     out: list[NoteEvent] = []
     for ev in events:

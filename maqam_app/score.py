@@ -111,6 +111,37 @@ def quantize(notes, bpm: float, offset_s: float = 0.0, min_conf: float = 0.45,
     return [tuple(x) for x in merged], unit
 
 
+def tidy_events(events, max_gap: int = 4, window: int = 15):
+    """تنضيف النوتة عشان تتقري زي ما بيتغنّى:
+    - النوتة بتكمّل لحد اللي بعدها لو الفاصل ضربة أو أقل (الغُنا متصل، مش متقطع بسكتات)
+    - النوتات اللي بعيدة جدًا عن منطقة اللحن (غلطة أوكتاف / صوت آلة) بتترجع للأوكتاف الصح
+    - دمج النوتات المتتالية بنفس الدرجة
+    """
+    if not events:
+        return events
+    ev = [list(e) for e in events]
+    idxs = np.array([e[2] for e in ev], dtype=float)
+    for i, e in enumerate(ev):
+        lo, hi = max(0, i - window // 2), min(len(ev), i + window // 2 + 1)
+        med = float(np.median(idxs[lo:hi]))
+        d = e[2] - med
+        if abs(d) > 18:                       # أكتر من 9 نص تون عن الجيران
+            shifted = e[2] - 24 * int(np.round(d / 24))
+            if abs(shifted - med) < abs(d):
+                e[2] = int(shifted)
+    for i in range(len(ev) - 1):
+        gap = ev[i + 1][0] - (ev[i][0] + ev[i][1])
+        if 0 < gap <= max_gap:
+            ev[i][1] += gap
+    out = []
+    for e in ev:
+        if out and out[-1][2] == e[2] and out[-1][0] + out[-1][1] >= e[0]:
+            out[-1][1] = e[0] + e[1] - out[-1][0]
+        else:
+            out.append(e)
+    return [tuple(e) for e in out]
+
+
 def _split_len(n: int) -> list[int]:
     """تقسيم طول لأطوال ينفع تتكتب (مع ربط)."""
     parts = []
@@ -289,10 +320,12 @@ def build_score(res, page_width: int = 1500, render: bool = True) -> Score:
             offset -= cycle_s
         offset = max(offset, -cycle_s)
     events, unit_s = quantize(res.notes, bpm, offset)
+    events = tidy_events(events)
     best = res.maqam.global_best
     key_sig, key_map = _key_signature(best.scale_pcs())
     idxs = [e[2] for e in events]
-    clef_down = bool(idxs) and float(np.median(idxs)) < -10   # صوت رجالي واطي
+    # صوت رجالي واطي: نكتب بمفتاح صول أوكتاف تحت (زي النوتات العربي) بدل خطوط إضافية كتير
+    clef_down = bool(idxs) and float(np.median(idxs)) < -6
     mei, idmap = build_mei(events, meter, key_sig, key_map, bpm, res.title, clef_down)
     svgs = render_svg(mei, page_width) if render else []
     notes = []
