@@ -351,7 +351,7 @@ svg { direction: ltr; }
     setSource($('stemSel').value, 0, false);
     renderMaqam(); renderNotes(); renderRhythm(); renderOrgan(); drawPlot(); loadScore();
     if (!R.score) setView('plot');
-    else if (!stemChosen) { const k = R.stems.find(s => s.key === 'piano_band') || R.stems.find(s => s.key === 'piano'); if (k) { $('stemSel').value = k.key; setSource(k.key, 0, false); } }
+    else if (!stemChosen) { const k = R.stems.find(s => s.key === 'piano_song') || R.stems.find(s => s.key === 'piano_band') || R.stems.find(s => s.key === 'piano'); if (k) { $('stemSel').value = k.key; setSource(k.key, 0, false); } }
     $('pdfBtn').href = withT('/api/export/report.pdf?v=' + version);
     $('midiBtn').href = withT('/api/export/melody.mid?bend=1');
     $('midiNoBend').href = withT('/api/export/melody.mid?bend=0');

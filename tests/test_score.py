@@ -56,7 +56,7 @@ def test_pipeline_builds_score_and_piano(tmp_path):
     assert all(sc.notes[i].end <= sc.notes[i + 1].start + 1e-6 for i in range(len(sc.notes) - 1))
     # الراست فيه سيكا → لازم يظهر نص بيمول في النوتة
     assert 'accid="1qf"' in sc.mei
-    for key in ("piano", "piano_band"):
+    for key in ("piano", "piano_band", "piano_song"):
         assert key in res.playback
         data, sr = sf.read(str(res.playback[key]))
         assert abs(len(data) / sr - res.duration) < 1.0 and np.max(np.abs(data)) > 0.05

@@ -213,7 +213,8 @@ def track(y: np.ndarray, sr: int, engine: str = "auto",
           progress: ProgressCB | None = None) -> PitchTrack:
     if engine in ("auto", "crepe", "crepe-tiny") and crepe_available():
         try:
-            model = "tiny" if engine == "crepe-tiny" else "full"
+            # "auto" = السريع (tiny) — أسرع بحوالي 10 مرات؛ "crepe" = الدقيق (full)
+            model = "full" if engine == "crepe" else "tiny"
             return track_crepe(y, sr, progress, model=model,
                                hop_s=0.01 if model == "tiny" else 0.02)
         except Exception:

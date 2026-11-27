@@ -112,7 +112,8 @@ def result_to_json(res: AnalysisResult) -> dict:
         "grid": grid,
         "c_min": c_min, "c_max": c_max,
         "stems": [{"key": k, "label": STEM_LABELS[k]}
-                  for k in ("mix", "piano_band", "piano", "vocals", "instruments", "drums")
+                  for k in ("mix", "piano_song", "piano_band", "piano", "vocals",
+                            "instruments", "drums")
                   if k in res.playback],
         "score": _score(res),
     }

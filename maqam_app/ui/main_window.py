@@ -133,8 +133,8 @@ class SettingsDialog(QDialog):
         self.chk_demucs = QCheckBox("استخدم Demucs لفصل صوت المطرب (أدق، أبطأ)")
         self.chk_demucs.setChecked(settings.use_demucs)
         self.cmb_engine = QComboBox()
-        self.cmb_engine.addItem("دقيق — CREPE full (موصى به)", "auto")
-        self.cmb_engine.addItem("سريع — CREPE tiny", "crepe-tiny")
+        self.cmb_engine.addItem("سريع — CREPE tiny (موصى به)", "auto")
+        self.cmb_engine.addItem("دقيق جدًا وبطيء — CREPE full", "crepe")
         self.cmb_engine.addItem("pYIN (librosa)", "pyin")
         self.cmb_engine.setCurrentIndex(max(0, self.cmb_engine.findData(settings.pitch_engine)))
         self.cmb_src = QComboBox()
@@ -353,7 +353,7 @@ class MainWindow(QMainWindow):
         self.slider.sliderReleased.connect(lambda: self.seek(self.slider.value() / 1000.0))
         self.cmb_stem = QComboBox()
         self.cmb_stem.setToolTip("تسمع أنهي مسار")
-        self.cmb_stem.setMinimumWidth(170)
+        self.cmb_stem.setMinimumWidth(310)   # عشان اسم المسار يظهر كامل
         self.cmb_stem.currentIndexChanged.connect(self._change_stem)
         self.cmb_speed = QComboBox()
         for r in (0.5, 0.75, 0.9, 1.0, 1.25):
@@ -487,7 +487,7 @@ class MainWindow(QMainWindow):
             # أول مرة: نسمّعه البيانو مع الموسيقى
             if not getattr(self, "_practice_stem_set", False):
                 self._practice_stem_set = True
-                for key in ("piano_band", "piano"):
+                for key in ("piano_song", "piano_band", "piano"):
                     i = self.cmb_stem.findData(key)
                     if i >= 0:
                         self.cmb_stem.setCurrentIndex(i)
@@ -653,7 +653,7 @@ class MainWindow(QMainWindow):
 
         self.cmb_stem.blockSignals(True)
         self.cmb_stem.clear()
-        for key in ("mix", "piano_band", "piano", "vocals", "instruments", "drums"):
+        for key in ("mix", "piano_song", "piano_band", "piano", "vocals", "instruments", "drums"):
             if key in res.playback:
                 self.cmb_stem.addItem(STEM_LABELS[key], key)
         self.cmb_stem.blockSignals(False)

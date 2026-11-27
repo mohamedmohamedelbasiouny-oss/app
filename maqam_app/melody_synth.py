@@ -77,4 +77,18 @@ def write_practice_stems(score, res, out_dir: Path) -> dict[str, Path]:
         p2 = out_dir / "piano_band.wav"
         sf.write(str(p2), np.stack([mix, mix], 1), SR, subtype="PCM_16")
         files["piano_band"] = p2
+    # البيانو فوق الأغنية كاملة (بالمطرب والموسيقى والإيقاع)
+    f = res.playback.get("mix")
+    if f and Path(f).exists():
+        y, sr = sf.read(str(f), dtype="float32", always_2d=True)
+        y = y.mean(axis=1)
+        if sr != SR:
+            y = librosa.resample(y, orig_sr=sr, target_sr=SR)
+        L = min(len(y), len(piano))
+        song = y[:L] / (np.max(np.abs(y[:L])) or 1.0) * 0.55
+        mix = song + piano[:L] * 0.9
+        mix = mix / max(1.0, float(np.max(np.abs(mix))))
+        p3 = out_dir / "piano_song.wav"
+        sf.write(str(p3), np.stack([mix, mix], 1), SR, subtype="PCM_16")
+        files["piano_song"] = p3
     return files
